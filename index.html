@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مطعم تعلولة - الطلب الإلكتروني</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Header -->
+    <header id="mainHeader">
+        <div class="header-content">
+            <h1>🍽️ مطعم تعلولة</h1>
+            <p>اطلب الآن واستمتع بأشهى الأطباق</p>
+        </div>
+    </header>
+
+    <!-- Top Sticky Bar -->
+    <div id="topStickyBar" class="sticky-bar">
+        <div id="sectionsNav" class="sections-nav"></div>
+    </div>
+
+    <!-- Main Content -->
+    <main>
+        <!-- Menu Sections will be dynamically inserted here -->
+        
+        <!-- Team Section -->
+        <section id="team">
+            <h2>👨‍🍳 فريق العمل</h2>
+            <p>فريق محترف لخدمتكم</p>
+        </section>
+
+        <!-- Support Section -->
+        <section id="support">
+            <h2>📞 الدعم الفني</h2>
+            <button onclick="openSupport()" class="support-btn">
+                <i class="fab fa-whatsapp"></i> تواصل معنا
+            </button>
+        </section>
+    </main>
+
+    <!-- Floating Cart Button -->
+    <button id="floatingCartBtn" class="floating-btn">
+        <i class="fas fa-shopping-cart"></i>
+        <span id="floatingCartCount">0</span>
+    </button>
+
+    <!-- Floating Track Button -->
+    <button id="floatingTrackBtn" class="floating-btn track-btn" style="display: none;">
+        <i class="fas fa-map-marker-alt"></i>
+        <span class="track-text">تتبع الطلب</span>
+    </button>
+
+    <!-- Location Icon Button -->
+    <button id="locationIconBtn" class="location-icon-btn">
+        <i class="fas fa-location-dot"></i>
+    </button>
+
+    <!-- Cart Modal -->
+    <div id="cartModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeCartModal()">&times;</span>
+            <h2>🛒 سلة المشتريات</h2>
+            
+            <div id="cartItems"></div>
+            
+            <div class="cart-total">
+                <strong>الإجمالي: <span id="cartTotal">0</span> د.ع</strong>
+            </div>
+
+            <div class="customer-info">
+                <h3>📝 معلومات التوصيل</h3>
+                <input type="tel" id="customerPhone" placeholder="رقم الهاتف (07XXXXXXXX)" maxlength="11">
+                <select id="deliveryArea">
+                    <option value="">-- اختر المنطقة --</option>
+                </select>
+                <div id="deliveryTimeHint" style="display: none;">
+                    ⏱️ الوقت المتوقع: <strong id="estimatedTimeDisplay">20</strong> دقيقة
+                </div>
+                <input type="text" id="detailedAddress" placeholder="العنوان التفصيلي (اختياري)">
+                <textarea id="orderNotes" placeholder="ملاحظات إضافية (اختياري)" maxlength="80"></textarea>
+                <div class="char-counter">
+                    <span id="notesCharCount">0/80</span>
+                </div>
+            </div>
+
+            <button onclick="showOrderReview()" class="btn-primary">مراجعة الطلب</button>
+        </div>
+    </div>
+
+    <!-- Product Modal -->
+    <div id="productModal" class="modal">
+        <div class="modal-content product-modal">
+            <span class="close-product-modal" onclick="closeProductModal()">&times;</span>
+            <img id="productModalImage" src="" alt="">
+            <h2 id="productModalName"></h2>
+            <p id="productModalDescription"></p>
+            <p class="price" id="productModalPrice"></p>
+            
+            <div class="quantity-control">
+                <button id="modalQtyDecrease" onclick="changeModalQuantity(-1)">-</button>
+                <span id="modalQtyDisplay">1</span>
+                <button id="modalQtyIncrease" onclick="changeModalQuantity(1)">+</button>
+            </div>
+            
+            <p class="total-price">الإجمالي: <span id="modalTotalPrice">0</span> د.ع</p>
+            
+            <button id="modalAddToCartBtn" onclick="addCurrentProductToCart()">
+                <i class="fas fa-cart-plus"></i> <span>إضافة للسلة</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Order Review Modal -->
+    <div id="orderReviewModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeOrderReview()">&times;</span>
+            <h2>📋 مراجعة الطلب</h2>
+            
+            <div id="orderReviewItems"></div>
+            
+            <div class="review-summary">
+                <p>عدد المنتجات: <span id="reviewItemCount">0</span></p>
+                <p>إجمالي القطع: <span id="reviewTotalQuantity">0</span></p>
+                <p class="total">المبلغ الإجمالي: <span id="reviewTotalAmount">0</span> د.ع</p>
+            </div>
+
+            <div class="location-section">
+                <h3>📍 موقع التوصيل</h3>
+                <button id="getLocationBtn" onclick="requestLocationAndUpdate()">
+                    <i class="fas fa-location-crosshairs"></i> تحديد موقعي الحالي
+                </button>
+                <div id="locationStatusBadge" class="status-badge warning">
+                    <span id="locationStatusText">⚠ الموقع غير محدد</span>
+                </div>
+            </div>
+
+            <button onclick="confirmAndSendOrder()" class="btn-primary btn-confirm">
+                <i class="fab fa-whatsapp"></i> إرسال الطلب عبر واتساب
+            </button>
+        </div>
+    </div>
+
+    <!-- Location Modal -->
+    <div id="locationModal" class="modal">
+        <div class="modal-content location-modal">
+            <span class="close-modal" onclick="closeLocationModal()">&times;</span>
+            <h2>📍 تحديد الموقع</h2>
+            <div id="locationModalStatus" class="location-modal-status">
+                <span id="locationModalText">اضغط على "تحديد الموقع الآن"</span>
+            </div>
+            <div id="locationModalInfo" style="display: none;">
+                <p>الإحداثيات: <span id="locationCoords"></span></p>
+            </div>
+            <button onclick="requestLocationAndUpdate()" class="btn-primary">
+                <i class="fas fa-location-crosshairs"></i> تحديد الموقع الآن
+            </button>
+        </div>
+    </div>
+
+    <!-- Processing Modal -->
+    <div id="processingModal" class="modal">
+        <div class="modal-content processing-modal">
+            <h2>⏳ جاري معالجة طلبك</h2>
+            <div class="timer-display">
+                <i class="fas fa-hourglass-half"></i>
+                <span id="processingTimer">05:00</span>
+            </div>
+            <p>يرجى الانتظار حتى يتم تجهيز طلبك</p>
+            <button id="cancelOrderBtn" class="btn-danger">
+                <i class="fas fa-times"></i> إلغاء الطلب
+            </button>
+        </div>
+    </div>
+
+    <!-- Ban Modal -->
+    <div id="banModal" class="modal">
+        <div class="modal-content ban-modal">
+            <h2>⛔ حسابك معلق</h2>
+            <div id="banMessage"></div>
+            <button onclick="closeBanModal()" class="btn-primary">حسناً</button>
+        </div>
+    </div>
+
+    <!-- Ads Container -->
+    <section id="adsSection">
+        <h2>🎁 العروض الخاصة</h2>
+        <div id="adsContainer"></div>
+    </section>
+
+    <!-- Scroll to Top -->
+    <button id="scrollToTopBtn" class="scroll-top-btn">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <!-- Main Script -->
+    <script src="script.js"></script>
+</body>
+</html>
