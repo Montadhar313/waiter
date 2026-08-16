@@ -2,10 +2,18 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>🍽️ نظام إدارة الطاولات - مطعم تعلولة</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    
+    <!-- QR Code Scanner Library -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body>
     <!-- ═══════════════════════════════════════════════════════════ -->
@@ -15,6 +23,10 @@
         <div class="header-content">
             <h1>🍽️ مطعم تعلولة</h1>
             <p class="subtitle">نظام إدارة الطاولات الذكي</p>
+            <div id="connectionStatus" class="status-badge disconnected">
+                <span class="dot"></span>
+                <span id="connectionText">جاري الاتصال...</span>
+            </div>
         </div>
         <div class="header-stats">
             <div class="stat-card available">
@@ -32,8 +44,78 @@
                 <span id="totalCount">0</span>
                 <small>إجمالي</small>
             </div>
+            <div class="stat-card freed">
+                <i class="fas fa-door-open"></i>
+                <span id="freedCount">0</span>
+                <small>تم تفريغها</small>
+            </div>
         </div>
     </header>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- 📷 قسم ماسح QR -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div class="scanner-section">
+        <div class="scanner-card">
+            <div class="scanner-title">
+                <h2>📷 ماسح رمز الطاولة</h2>
+                <p>وجّه الكاميرا نحو رمز QR المثبت على الطاولة لتفريغها</p>
+            </div>
+            
+            <div class="scanner-container" id="scannerContainer">
+                <div id="reader"></div>
+                <div class="scanner-overlay" id="scannerOverlay" style="display:none;">
+                    <div class="scan-frame">
+                        <div class="scan-line"></div>
+                    </div>
+                </div>
+                <div class="scanner-placeholder" id="scannerPlaceholder">
+                    <div class="icon">📷</div>
+                    <p>اضغط الزر أدناه لتشغيل الكاميرا</p>
+                </div>
+            </div>
+
+            <div class="btn-group" style="margin-top:16px;">
+                <button class="btn btn-primary" id="startScanBtn" onclick="startScanner()">
+                    <i class="fas fa-camera"></i>
+                    <span>تشغيل الكاميرا</span>
+                </button>
+                <button class="btn btn-danger" id="stopScanBtn" onclick="stopScanner()" style="display:none;">
+                    <i class="fas fa-stop"></i>
+                    <span>إيقاف الكاميرا</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- ⌨️ قسم الإدخال اليدوي -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div class="manual-section">
+        <div class="manual-title">
+            <i class="fas fa-keyboard"></i>
+            تفريغ يدوي - أدخل رقم الطاولة
+        </div>
+        <div class="manual-input-group">
+            <input type="number" class="manual-input" id="manualTableInput" 
+                   placeholder="رقم الطاولة (مثال: 5)" min="1" inputmode="numeric">
+            <button class="manual-btn" onclick="manualFreeTable()">
+                <i class="fas fa-door-open"></i>
+                تفريغ
+            </button>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- 🎯 نتيجة العملية -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div class="result-card" id="resultCard">
+        <div class="result-icon" id="resultIcon">✅</div>
+        <div class="result-title" id="resultTitle">تم بنجاح!</div>
+        <div class="result-message" id="resultMessage">تم تفريغ الطاولة بنجاح</div>
+        <div class="result-table-number" id="resultTableNumber" style="display:none;"></div>
+        <div class="result-time" id="resultTime"></div>
+    </div>
 
     <!-- ═══════════════════════════════════════════════════════════ -->
     <!-- 🔍 شريط البحث والأدوات -->
@@ -64,14 +146,35 @@
     <!-- ═══════════════════════════════════════════════════════════ -->
     <main class="tables-container">
         <div class="tables-grid" id="tablesGrid">
-            <!-- يتم ملء الطاولات ديناميكياً من JavaScript -->
+            <!-- يتم ملء الطاولات ديناميكياً -->
         </div>
     </main>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- 📋 سجل التفريغ -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div class="history-card">
+        <div class="history-title">
+            <i class="fas fa-clipboard-list"></i>
+            <span>سجل التفريغ (الجلسة الحالية)</span>
+        </div>
+        <ul class="history-list" id="historyList">
+            <li class="history-empty">لم يتم تفريغ أي طاولة بعد</li>
+        </ul>
+    </div>
 
     <!-- ═══════════════════════════════════════════════════════════ -->
     <!-- 🔔 نظام الإشعارات -->
     <!-- ═══════════════════════════════════════════════════════════ -->
     <div class="notification-container" id="notificationContainer"></div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- 🍞 Toast -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div class="toast" id="toast">
+        <span id="toastIcon">ℹ️</span>
+        <span id="toastMessage"></span>
+    </div>
 
     <!-- ═══════════════════════════════════════════════════════════ -->
     <!-- 🪟 نافذة تأكيد التفريغ -->
@@ -87,7 +190,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-cancel" id="modalCancelBtn">إلغاء</button>
-                <button class="btn btn-confirm" id="modalConfirmBtn">تأكيد</button>
+                <button class="btn btn-confirm" id="modalConfirmBtn">تأكيد التفريغ</button>
             </div>
         </div>
     </div>
@@ -104,8 +207,12 @@
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div class="modal-body" id="tableDetailsBody">
-                <!-- يتم ملؤه ديناميكياً -->
+            <div class="modal-body" id="tableDetailsBody"></div>
+            <div class="modal-footer">
+                <button class="btn btn-cancel" id="closeDetailsBtn2">إغلاق</button>
+                <button class="btn btn-confirm" id="freeFromDetailsBtn" style="display:none;">
+                    <i class="fas fa-door-open"></i> تفريغ الطاولة
+                </button>
             </div>
         </div>
     </div>
@@ -115,14 +222,9 @@
     <!-- ═══════════════════════════════════════════════════════════ -->
     <footer class="main-footer">
         <p>© 2026 مطعم تعلولة - جميع الحقوق محفوظة</p>
-        <p class="version">الإصدار 2.0 | نظام إدارة الطاولات الذكي</p>
+        <p class="version">الإصدار 3.0 | نظام إدارة الطاولات الذكي مع QR</p>
     </footer>
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-    
-    <!-- الملف الرئيسي -->
     <script src="script.js"></script>
 </body>
 </html>
