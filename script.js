@@ -233,50 +233,433 @@ function renderTables() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 🪑 إنشاء بطاقة الطاولة
+// 🪑 إنشاء بطاقة الطاولة المحسّنة - تتعامل مع جميع المتغيرات
 // ═══════════════════════════════════════════════════════════════
 function createTableCard(table) {
+    // تحديد الحالة والأسلوب
+    const statusConfig = getStatusConfig(table.status);
     const isOccupied = table.status === STATUS_OCCUPIED;
-    const statusClass = isOccupied ? 'occupied' : 'available';
-    const statusText = isOccupied ? 'مشغولة' : 'متاحة';
-    const statusIcon = isOccupied ? 'fa-users' : 'fa-check-circle';
+    const isCleaning = table.status === STATUS_CLEANING;
+    const isReserved = table.status === 'Reserved';
+    const isAvailable = table.status === STATUS_AVAILABLE;
     
-    const personsText = table.numberOfPersons 
-        ? `<p><i class="fas fa-user"></i> ${table.numberOfPersons} أشخاص</p>` : '';
+    // حساب الوقت المنقضي منذ الجلوس
+    const elapsedTime = table.seatedAt ? calculateElapsedTime(table.seatedAt) : null;
     
-    const orderText = table.currentOrderId 
-        ? `<p><i class="fas fa-receipt"></i> طلب #${table.currentOrderId}</p>` : '';
-
-    const seatedText = table.seatedAt 
-        ? `<p><i class="fas fa-clock"></i> ${formatTime(table.seatedAt)}</p>` : '';
-
-    const actionButton = isOccupied
-        ? `<button class="table-btn success" onclick="event.stopPropagation(); smartFreeTable('${table.id}', '${table.tableNumber}')">
-               <i class="fas fa-door-open"></i> تفريغ الطاولة
-           </button>`
-        : `<button class="table-btn primary" onclick="event.stopPropagation(); showTableDetails('${table.id}')">
-               <i class="fas fa-info-circle"></i> التفاصيل
-           </button>`;
+    // بناء معلومات الطاولة
+    const infoItems = [];
+    
+    // المنطقة
+    if (table.area) {
+        infoItems.push(`<div class="info-row"><i class="fas fa-map-marker-alt"></i> ${table.area}</div>`);
+    }
+    
+    // عدد الأشخاص
+    const persons = table.numberOfPersons || table.personCount;
+    if (persons && persons > 0) {
+        infoItems.push(`<div class="info-row"><i class="fas fa-users"></i> ${persons} أشخاص</div>`);
+    }
+    
+    // عدد الطلبات النشطة
+    if (table.activeOrdersCount && table.activeOrdersCount > 0) {
+        infoItems.push(`<div class="info-row highlight"><i class="fas fa-receipt"></i> ${table.activeOrdersCount} طلب نشط</div>`);
+    } else if (table.currentOrderId) {
+        infoItems.push(`<div class="info-row"><i class="fas fa-receipt"></i> طلب #${table.currentOrderId}</div>`);
+    }
+    
+    // الوقت المنقضي
+    if (elapsedTime && isOccupied) {
+        const timeClass = elapsedTime.minutes > 60 ? 'warning' : '';
+        infoItems.push(`<div class="info-row ${timeClass}"><i class="fas fa-clock"></i> ${elapsedTime.text}</div>`);
+    }
+    
+    // وقت الجلوس
+    if (table.seatedAt) {
+        infoItems.push(`<div class="info-row small"><i class="fas fa-chair"></i> ${formatTime(table.seatedAt)}</div>`);
+    }
+    
+    // آخر تحديث
+    if (table.lastUpdated && !isAvailable) {
+        infoItems.push(`<div class="info-row small"><i class="fas fa-sync"></i> ${formatTimeAgo(table.lastUpdated)}</div>`);
+    }
+    
+    // حالة التنظيف
+    if (isCleaning) {
+        infoItems.push(`<div class="info-row cleaning"><i class="fas fa-broom"></i> جاري التنظيف</div>`);
+    }
+    
+    // حالة الحجز
+    if (isReserved) {
+        infoItems.push(`<div class="info-row reserved"><i class="fas fa-bookmark"></i> محجوزة</div>`);
+    }
+    
+    // بناء أزرار الإجراءات حسب الحالة
+    let actionButtons = '';
+    
+    if (isOccupied) {
+        actionButtons = `
+            <button class="table-action-pro free-btn" onclick="event.stopPropagation(); smartFreeTable('${table.id}', '${table.tableNumber}')">
+                <i class="fas fa-door-open"></i> تفريغ
+            </button>
+            <button class="table-action-pro details-btn" onclick="event.stopPropagation(); showTableDetails('${table.id}')">
+                <i class="fas fa-info-circle"></i> تفاصيل
+            </button>
+        `;
+    } else if (isCleaning) {
+        actionButtons = `
+            <button class="table-action-pro ready-btn" onclick="event.stopPropagation(); markTableReady('${table.id}', '${table.tableNumber}')">
+                <i class="fas fa-check"></i> جاهزة
+            </button>
+        `;
+    } else if (isReserved) {
+        actionButtons = `
+            <button class="table-action-pro cancel-reserve-btn" onclick="event.stopPropagation(); cancelReservation('${table.id}', '${table.tableNumber}')">
+                <i class="fas fa-times"></i> إلغاء الحجز
+            </button>
+            <button class="table-action-pro details-btn" onclick="event.stopPropagation(); showTableDetails('${table.id}')">
+                <i class="fas fa-info-circle"></i> تفاصيل
+            </button>
+        `;
+    } else {
+        // متاحة
+        actionButtons = `
+            <button class="table-action-pro details-btn" onclick="event.stopPropagation(); showTableDetails('${table.id}')">
+                <i class="fas fa-info-circle"></i> التفاصيل
+            </button>
+        `;
+    }
+    
+    // شارة الحالة
+    const statusBadge = `
+        <span class="table-status-pro ${statusConfig.class}">
+            <i class="fas ${statusConfig.icon}"></i>
+            ${statusConfig.text}
+        </span>
+    `;
+    
+    // مؤشر الطلبات المتعددة
+    const multiOrderBadge = table.activeOrdersCount > 1 
+        ? `<span class="multi-order-badge">${table.activeOrdersCount} طلبات</span>` 
+        : '';
+    
+    // مؤشر الوقت الطويل
+    const longStayBadge = elapsedTime && elapsedTime.minutes > 90 
+        ? `<span class="long-stay-badge"><i class="fas fa-exclamation-triangle"></i></span>` 
+        : '';
 
     return `
-        <div class="table-card ${statusClass} fade-in" onclick="showTableDetails('${table.id}')" data-id="${table.id}">
-            <div class="table-card-header">
-                <span class="table-number">${table.tableNumber}</span>
-                <span class="table-status-badge">
-                    <i class="fas ${statusIcon}"></i> ${statusText}
-                </span>
+        <div class="table-card-pro ${statusConfig.cardClass} fade-in" 
+             onclick="showTableDetails('${table.id}')" 
+             data-id="${table.id}"
+             data-status="${table.status}">
+            <div class="table-card-header-pro">
+                <div class="table-number-pro">${table.tableNumber}</div>
+                ${statusBadge}
+                ${multiOrderBadge}
+                ${longStayBadge}
             </div>
-            <div class="table-info">
-                <p><i class="fas fa-map-marker-alt"></i> ${table.area}</p>
-                ${personsText}
-                ${orderText}
-                ${seatedText}
+            <div class="table-info-pro">
+                ${infoItems.join('')}
             </div>
-            <div class="table-actions" onclick="event.stopPropagation()">
-                ${actionButton}
+            <div class="table-actions-pro" onclick="event.stopPropagation()">
+                ${actionButtons}
             </div>
         </div>
     `;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 🎨 إعدادات الحالة
+// ═══════════════════════════════════════════════════════════════
+function getStatusConfig(status) {
+    const configs = {
+        'Available': {
+            class: 'status-available',
+            cardClass: 'available',
+            icon: 'fa-check-circle',
+            text: 'متاحة'
+        },
+        'Occupied': {
+            class: 'status-occupied',
+            cardClass: 'occupied',
+            icon: 'fa-users',
+            text: 'مشغولة'
+        },
+        'Cleaning': {
+            class: 'status-cleaning',
+            cardClass: 'cleaning',
+            icon: 'fa-broom',
+            text: 'تنظيف'
+        },
+        'Reserved': {
+            class: 'status-reserved',
+            cardClass: 'reserved',
+            icon: 'fa-bookmark',
+            text: 'محجوزة'
+        }
+    };
+    return configs[status] || configs['Available'];
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// ⏱️ حساب الوقت المنقضي
+// ═══════════════════════════════════════════════════════════════
+function calculateElapsedTime(seatedAt) {
+    const now = Date.now();
+    const seated = new Date(seatedAt).getTime();
+    const diffMs = now - seated;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const remainMins = diffMins % 60;
+    
+    let text = '';
+    if (diffHours > 0) {
+        text = `${diffHours}س ${remainMins}د`;
+    } else {
+        text = `${diffMins} دقيقة`;
+    }
+    
+    return {
+        minutes: diffMins,
+        hours: diffHours,
+        text: text
+    };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 🕐 تنسيق الوقت المنقضي
+// ═══════════════════════════════════════════════════════════════
+function formatTimeAgo(timestamp) {
+    const now = Date.now();
+    const time = new Date(timestamp).getTime();
+    const diffMs = now - time;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    
+    if (diffMins < 1) return 'الآن';
+    if (diffMins < 60) return `منذ ${diffMins} د`;
+    if (diffHours < 24) return `منذ ${diffHours} س`;
+    return formatDateTime(timestamp);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ✅ تعليم الطاولة كجاهزة (بعد التنظيف)
+// ═══════════════════════════════════════════════════════════════
+async function markTableReady(tableId, tableNumber) {
+    try {
+        const updateData = {
+            status: STATUS_AVAILABLE,
+            currentOrderId: null,
+            numberOfPersons: null,
+            personCount: null,
+            seatedAt: null,
+            lastUpdated: firebase.database.ServerValue.TIMESTAMP,
+            activeOrdersCount: 0
+        };
+        
+        await db.ref(`${TABLES_PATH}/${tableId}`).update(updateData);
+        showToast(`✅ الطاولة ${tableNumber} جاهزة للاستخدام`, 'success');
+        addToHistory(tableNumber, 'تنظيف');
+    } catch (error) {
+        console.error('❌ فشل تحديث حالة الطاولة:', error);
+        showToast('❌ فشل تحديث الحالة', 'error');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ❌ إلغاء الحجز
+// ═══════════════════════════════════════════════════════════════
+async function cancelReservation(tableId, tableNumber) {
+    if (!confirm(`هل تريد إلغاء حجز الطاولة ${tableNumber}؟`)) return;
+    
+    try {
+        const updateData = {
+            status: STATUS_AVAILABLE,
+            lastUpdated: firebase.database.ServerValue.TIMESTAMP
+        };
+        
+        await db.ref(`${TABLES_PATH}/${tableId}`).update(updateData);
+        showToast(`✅ تم إلغاء حجز الطاولة ${tableNumber}`, 'success');
+    } catch (error) {
+        console.error('❌ فشل إلغاء الحجز:', error);
+        showToast('❌ فشل إلغاء الحجز', 'error');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 📋 عرض تفاصيل الطاولة المحسّنة
+// ═══════════════════════════════════════════════════════════════
+function showTableDetails(tableId) {
+    const table = tablesCache.find(t => t.id === tableId);
+    if (!table) return;
+
+    const statusConfig = getStatusConfig(table.status);
+    const elapsedTime = table.seatedAt ? calculateElapsedTime(table.seatedAt) : null;
+    const persons = table.numberOfPersons || table.personCount;
+
+    const detailsHtml = `
+        <div class="details-header-pro">
+            <div class="details-table-number">${table.tableNumber}</div>
+            <span class="table-status-pro ${statusConfig.class}">
+                <i class="fas ${statusConfig.icon}"></i>
+                ${statusConfig.text}
+            </span>
+        </div>
+        
+        <div class="details-section-pro">
+            <h4><i class="fas fa-info-circle"></i> المعلومات الأساسية</h4>
+            <div class="detail-row-pro">
+                <span class="detail-label-pro"><i class="fas fa-hashtag"></i> رقم الطاولة:</span>
+                <span class="detail-value-pro">${table.tableNumber}</span>
+            </div>
+            <div class="detail-row-pro">
+                <span class="detail-label-pro"><i class="fas fa-map-marker-alt"></i> المنطقة:</span>
+                <span class="detail-value-pro">${table.area || 'غير محدد'}</span>
+            </div>
+            <div class="detail-row-pro">
+                <span class="detail-label-pro"><i class="fas fa-flag"></i> الحالة:</span>
+                <span class="detail-value-pro ${statusConfig.class}">${statusConfig.text}</span>
+            </div>
+        </div>
+        
+        ${table.status === STATUS_OCCUPIED ? `
+        <div class="details-section-pro">
+            <h4><i class="fas fa-users"></i> معلومات الإشغال</h4>
+            ${persons ? `
+            <div class="detail-row-pro">
+                <span class="detail-label-pro"><i class="fas fa-user-friends"></i> عدد الأشخاص:</span>
+                <span class="detail-value-pro">${persons}</span>
+            </div>` : ''}
+            ${table.seatedAt ? `
+            <div class="detail-row-pro">
+                <span class="detail-label-pro"><i class="fas fa-clock"></i> وقت الجلوس:</span>
+                <span class="detail-value-pro">${formatDateTime(table.seatedAt)}</span>
+            </div>
+            <div class="detail-row-pro">
+                <span class="detail-label-pro"><i class="fas fa-hourglass-half"></i> المدة:</span>
+                <span class="detail-value-pro ${elapsedTime.minutes > 60 ? 'warning-text' : ''}">${elapsedTime.text}</span>
+            </div>` : ''}
+            ${table.currentOrderId ? `
+            <div class="detail-row-pro">
+                <span class="detail-label-pro"><i class="fas fa-receipt"></i> رقم الطلب:</span>
+                <span class="detail-value-pro">#${table.currentOrderId}</span>
+            </div>` : ''}
+            ${table.activeOrdersCount > 0 ? `
+            <div class="detail-row-pro">
+                <span class="detail-label-pro"><i class="fas fa-layer-group"></i> الطلبات النشطة:</span>
+                <span class="detail-value-pro highlight">${table.activeOrdersCount}</span>
+            </div>` : ''}
+        </div>` : ''}
+        
+        ${table.lastUpdated ? `
+        <div class="details-section-pro">
+            <h4><i class="fas fa-history"></i> السجل</h4>
+            <div class="detail-row-pro">
+                <span class="detail-label-pro"><i class="fas fa-sync"></i> آخر تحديث:</span>
+                <span class="detail-value-pro">${formatDateTime(table.lastUpdated)}</span>
+            </div>
+        </div>` : ''}
+        
+        ${table.qrCodeData ? `
+        <div class="details-section-pro">
+            <h4><i class="fas fa-qrcode"></i> رمز QR</h4>
+            <div class="qr-code-display">
+                <code>${table.qrCodeData}</code>
+            </div>
+        </div>` : ''}
+    `;
+
+    const body = document.getElementById('tableDetailsBody');
+    const freeBtn = document.getElementById('freeFromDetailsBtn');
+    
+    if (body) body.innerHTML = detailsHtml;
+    if (freeBtn) {
+        if (table.status === STATUS_OCCUPIED) {
+            freeBtn.style.display = 'flex';
+            freeBtn.innerHTML = '<i class="fas fa-door-open"></i> تفريغ الطاولة';
+            freeBtn.onclick = () => {
+                document.getElementById('tableDetailsModal').classList.remove('active');
+                smartFreeTable(table.id, table.tableNumber);
+            };
+        } else if (table.status === STATUS_CLEANING) {
+            freeBtn.style.display = 'flex';
+            freeBtn.innerHTML = '<i class="fas fa-check"></i> تعليم كجاهزة';
+            freeBtn.onclick = () => {
+                document.getElementById('tableDetailsModal').classList.remove('active');
+                markTableReady(table.id, table.tableNumber);
+            };
+        } else {
+            freeBtn.style.display = 'none';
+        }
+    }
+    
+    document.getElementById('tableDetailsModal')?.classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 📊 تحديث الإحصائيات المحسّنة
+// ═══════════════════════════════════════════════════════════════
+function updateStats() {
+    const available = tablesCache.filter(t => t.status === STATUS_AVAILABLE).length;
+    const occupied = tablesCache.filter(t => t.status === STATUS_OCCUPIED).length;
+    const cleaning = tablesCache.filter(t => t.status === STATUS_CLEANING).length;
+    const reserved = tablesCache.filter(t => t.status === 'Reserved').length;
+    const total = tablesCache.length;
+    const activeOrders = tablesCache.reduce((sum, t) => sum + (t.activeOrdersCount || 0), 0);
+
+    const el = (id) => document.getElementById(id);
+    if (el('availableCount')) el('availableCount').textContent = available;
+    if (el('occupiedCount')) el('occupiedCount').textContent = occupied;
+    if (el('totalCount')) el('totalCount').textContent = total;
+    if (el('freedCount')) el('freedCount').textContent = sessionFreedCount;
+    
+    // إضافة إحصائيات إضافية إذا كانت العناصر موجودة
+    if (el('cleaningCount')) el('cleaningCount').textContent = cleaning;
+    if (el('reservedCount')) el('reservedCount').textContent = reserved;
+    if (el('activeOrdersCount')) el('activeOrdersCount').textContent = activeOrders;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 📋 سجل التفريغ المحسّن
+// ═══════════════════════════════════════════════════════════════
+function addToHistory(tableNumber, action = 'تفريغ') {
+    freedTablesLog.unshift({
+        tableNumber: tableNumber,
+        action: action,
+        time: new Date()
+    });
+    
+    if (freedTablesLog.length > 30) freedTablesLog.pop();
+    renderHistory();
+    
+    // تحديث العداد
+    const countEl = document.getElementById('historyCount');
+    if (countEl) countEl.textContent = freedTablesLog.length;
+}
+
+function renderHistory() {
+    const list = document.getElementById('historyList');
+    if (!list) return;
+    
+    if (freedTablesLog.length === 0) {
+        list.innerHTML = '<li class="history-empty"><i class="fas fa-inbox"></i><p>لم يتم تفريغ أي طاولة بعد</p></li>';
+        return;
+    }
+    
+    list.innerHTML = freedTablesLog.map(item => `
+        <li class="history-item-pro">
+            <div class="history-badge-pro">
+                <i class="fas ${item.action === 'تفريغ' ? 'fa-door-open' : 'fa-check'}"></i>
+            </div>
+            <div class="history-info-pro">
+                <div class="history-name-pro">طاولة ${item.tableNumber} - ${item.action}</div>
+                <div class="history-time-pro">${item.time.toLocaleTimeString('ar-IQ', { 
+                    hour: '2-digit', minute: '2-digit', second: '2-digit' 
+                })}</div>
+            </div>
+        </li>
+    `).join('');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -561,72 +944,6 @@ async function executeFreeTable(tableId, tableNumber) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 📋 عرض تفاصيل الطاولة
-// ═══════════════════════════════════════════════════════════════
-function showTableDetails(tableId) {
-    const table = tablesCache.find(t => t.id === tableId);
-    if (!table) return;
-
-    const isOccupied = table.status === STATUS_OCCUPIED;
-    const statusClass = isOccupied ? 'status-occupied' : 'status-available';
-    const statusText = isOccupied ? 'مشغولة' : 'متاحة';
-
-    const detailsHtml = `
-        <div class="detail-row">
-            <span class="detail-label">رقم الطاولة:</span>
-            <span class="detail-value">${table.tableNumber}</span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">الحالة:</span>
-            <span class="detail-value ${statusClass}">${statusText}</span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">المنطقة:</span>
-            <span class="detail-value">${table.area}</span>
-        </div>
-        ${table.numberOfPersons ? `
-        <div class="detail-row">
-            <span class="detail-label">عدد الأشخاص:</span>
-            <span class="detail-value">${table.numberOfPersons}</span>
-        </div>` : ''}
-        ${table.currentOrderId ? `
-        <div class="detail-row">
-            <span class="detail-label">رقم الطلب:</span>
-            <span class="detail-value">#${table.currentOrderId}</span>
-        </div>` : ''}
-        ${table.activeOrdersCount > 0 ? `
-        <div class="detail-row">
-            <span class="detail-label">الطلبات النشطة:</span>
-            <span class="detail-value">${table.activeOrdersCount}</span>
-        </div>` : ''}
-        ${table.seatedAt ? `
-        <div class="detail-row">
-            <span class="detail-label">وقت الجلوس:</span>
-            <span class="detail-value">${formatDateTime(table.seatedAt)}</span>
-        </div>` : ''}
-        ${table.lastUpdated ? `
-        <div class="detail-row">
-            <span class="detail-label">آخر تحديث:</span>
-            <span class="detail-value">${formatDateTime(table.lastUpdated)}</span>
-        </div>` : ''}
-    `;
-
-    const body = document.getElementById('tableDetailsBody');
-    const freeBtn = document.getElementById('freeFromDetailsBtn');
-    
-    if (body) body.innerHTML = detailsHtml;
-    if (freeBtn) {
-        freeBtn.style.display = isOccupied ? 'flex' : 'none';
-        freeBtn.onclick = () => {
-            document.getElementById('tableDetailsModal').classList.remove('active');
-            smartFreeTable(table.id, table.tableNumber);
-        };
-    }
-    
-    document.getElementById('tableDetailsModal')?.classList.add('active');
-}
-
-// ═══════════════════════════════════════════════════════════════
 // 📊 تحديث الإحصائيات
 // ═══════════════════════════════════════════════════════════════
 function updateStats() {
@@ -638,41 +955,6 @@ function updateStats() {
     if (el('availableCount')) el('availableCount').textContent = available;
     if (el('occupiedCount')) el('occupiedCount').textContent = occupied;
     if (el('totalCount')) el('totalCount').textContent = total;
-}
-
-// ═══════════════════════════════════════════════════════════════
-// 📋 سجل التفريغ
-// ═══════════════════════════════════════════════════════════════
-function addToHistory(tableNumber) {
-    freedTablesLog.unshift({
-        tableNumber: tableNumber,
-        time: new Date()
-    });
-    
-    if (freedTablesLog.length > 20) freedTablesLog.pop();
-    renderHistory();
-}
-
-function renderHistory() {
-    const list = document.getElementById('historyList');
-    if (!list) return;
-    
-    if (freedTablesLog.length === 0) {
-        list.innerHTML = '<li class="history-empty">لم يتم تفريغ أي طاولة بعد</li>';
-        return;
-    }
-    
-    list.innerHTML = freedTablesLog.map(item => `
-        <li class="history-item">
-            <div class="table-badge">✅ ${item.tableNumber}</div>
-            <div class="info">
-                <div class="table-name">طاولة ${item.tableNumber} - تم تفريغها</div>
-                <div class="time">${item.time.toLocaleTimeString('ar-IQ', { 
-                    hour: '2-digit', minute: '2-digit', second: '2-digit' 
-                })}</div>
-            </div>
-        </li>
-    `).join('');
 }
 
 // ═══════════════════════════════════════════════════════════════
