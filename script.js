@@ -944,20 +944,6 @@ async function executeFreeTable(tableId, tableNumber) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 📊 تحديث الإحصائيات
-// ═══════════════════════════════════════════════════════════════
-function updateStats() {
-    const available = tablesCache.filter(t => t.status === STATUS_AVAILABLE).length;
-    const occupied = tablesCache.filter(t => t.status === STATUS_OCCUPIED).length;
-    const total = tablesCache.length;
-
-    const el = (id) => document.getElementById(id);
-    if (el('availableCount')) el('availableCount').textContent = available;
-    if (el('occupiedCount')) el('occupiedCount').textContent = occupied;
-    if (el('totalCount')) el('totalCount').textContent = total;
-}
-
-// ═══════════════════════════════════════════════════════════════
 // 🎨 عرض النتيجة
 // ═══════════════════════════════════════════════════════════════
 function showResult(type, icon, title, message, tableNumber = null) {
